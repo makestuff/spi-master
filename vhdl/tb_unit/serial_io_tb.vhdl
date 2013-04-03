@@ -26,7 +26,7 @@ end serial_io_tb;
 
 architecture behavioural of serial_io_tb is
 	-- Clocks, etc
-	signal clk      : std_logic;
+	signal sysClk   : std_logic;
 	signal reset    : std_logic;
 
 	-- Client interface
@@ -44,7 +44,7 @@ begin
 	uut: entity work.serial_io
 		port map(
 			reset_in  => reset,
-			clk_in    => clk,
+			clk_in    => sysClk,
 			data_in   => sendData,
 			data_out  => recvData,
 			load_in   => load,
@@ -58,9 +58,9 @@ begin
 	-- Drive the clock
 	process
 	begin
-		clk <= '0';
+		sysClk <= '0';
 		wait for 5 ns;
-		clk <= '1';
+		sysClk <= '1';
 		wait for 5 ns;
 	end process;
 
