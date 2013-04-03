@@ -1,0 +1,6 @@
+------------------------------ SERIAL I/O MODULE -------------------------------
+
+SPI-like serial I/O module. You clock a byte in in parallel using data_in and
+load_in. The busy_out goes high whilst the bits are clocked out and in one at a
+time. When it's finished, the serial input is available on data_out on the first
+rising edge of the clock after busy_out goes low.
