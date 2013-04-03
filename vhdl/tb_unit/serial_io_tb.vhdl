@@ -25,19 +25,21 @@ entity serial_io_tb is
 end serial_io_tb;
 
 architecture behavioural of serial_io_tb is
-
-	signal reset    : std_logic;
+	-- Clocks, etc
 	signal clk      : std_logic;
-	signal sendData : std_logic_vector(7 downto 0);
-	signal recvData : std_logic_vector(7 downto 0);
-	signal load     : std_logic;
-	signal busy     : std_logic;
-	signal sDataOut : std_logic;
-	signal sDataIn  : std_logic;
-	signal sClk     : std_logic;
+	signal reset    : std_logic;
 
+	-- Client interface
+	signal sendData : std_logic_vector(7 downto 0);  -- data to send
+	signal recvData : std_logic_vector(7 downto 0);  -- data we receive
+	signal load     : std_logic;  -- begin a new send/receive operation
+	signal busy     : std_logic;  -- flag to indicate when serial_io unit is busy sending/receiving
+
+	-- External interface
+	signal sDataOut : std_logic;  -- send serial data
+	signal sDataIn  : std_logic;  -- receive serial data
+	signal sClk     : std_logic;  -- serial clock
 begin
-
 	-- Instantiate the unit under test
 	uut: entity work.serial_io
 		port map(
