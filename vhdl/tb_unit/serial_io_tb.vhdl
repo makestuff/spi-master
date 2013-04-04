@@ -26,7 +26,8 @@ end serial_io_tb;
 
 architecture behavioural of serial_io_tb is
 	-- Clocks, etc
-	signal sysClk   : std_logic;
+	signal sysClk   : std_logic;  -- main system clock
+	signal dispClk  : std_logic;  -- display version of sysClk, which transitions 4ns before it
 	signal reset    : std_logic;
 
 	-- Client interface
@@ -55,13 +56,30 @@ begin
 			sClk_out  => sClk
 		);
 
-	-- Drive the clock
+	-- Drive the clocks. In simulation, sysClk lags 4ns behind dispClk, to give a visual hold time
+	-- for signals in GTKWave.
 	process
 	begin
 		sysClk <= '0';
-		wait for 5 ns;
-		sysClk <= '1';
-		wait for 5 ns;
+		dispClk <= '0';
+		wait for 16 ns;
+		loop
+			dispClk <= not(dispClk);  -- first dispClk transitions
+			wait for 4 ns;
+			sysClk <= not(sysClk);  -- then sysClk transitions, 4ns later
+			wait for 6 ns;
+		end loop;
+	end process;
+
+	-- Deassert the synchronous reset a couple of cycles after startup.
+	--
+	process
+	begin
+		reset <= '1';
+		wait until rising_edge(sysClk);
+		wait until rising_edge(sysClk);
+		reset <= '0';
+		wait;
 	end process;
 
 	-- Drive the serial interface: send from s/send.sim and receive into r/recv.sim
@@ -73,17 +91,15 @@ begin
 	begin
 		sendData <= (others => 'X');
 		load <= '0';
-		reset <= '1';
-		wait for 10 ns;
-		reset <= '0';
-		wait for 40 ns;
+		wait until falling_edge(reset);
+		wait until rising_edge(sysClk);
 		loop
 			exit when endfile(inFile);
 			readline(inFile, inLine);
 			read(inLine, inData);
 			sendData <= inData;
 			load <= '1';
-			wait for 10 ns;
+			wait until rising_edge(sysClk);
 			sendData <= (others => 'X');
 			load <= '0';
 			wait until busy = '0';
