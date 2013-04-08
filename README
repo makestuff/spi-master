@@ -1,6 +1,7 @@
------------------------------- SERIAL I/O MODULE -------------------------------
+------------------------------ SPI MASTER MODULE -------------------------------
 
-SPI-like serial I/O module. You clock a byte in in parallel using data_in and
-load_in. The busy_out goes high whilst the bits are clocked out and in one at a
-time. When it's finished, the serial input is available on data_out on the first
-rising edge of the clock after busy_out goes low.
+SPI master serial I/O module, with data-valid-ready interface. You put a byte to
+be sent in the "send" pipe and a few cycles later the byte that was meanwhile
+received becomes available on the "recv" pipe. This should be consumed
+immediately otherwise the send pipe will block (i.e no more bytes will be sent
+until the recieved byte is consumed).

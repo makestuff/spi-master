@@ -22,10 +22,10 @@ use ieee.std_logic_textio.all;
 use std.textio.all;
 use work.hex_util.all;
 
-entity serial_io_tb is
+entity spi_master_tb is
 end entity;
 
-architecture behavioural of serial_io_tb is
+architecture behavioural of spi_master_tb is
 	-- Clocks, etc
 	signal sysClk     : std_logic;  -- main system clock
 	signal dispClk    : std_logic;  -- display version of sysClk, which transitions 4ns before it
@@ -45,7 +45,7 @@ architecture behavioural of serial_io_tb is
 	signal spiDataIn  : std_logic;  -- receive serial data
 begin
 	-- Instantiate the unit under test
-	uut: entity work.serial_io
+	uut: entity work.spi_master
 		generic map(
 			--FAST_COUNT => "000011"
 			FAST_COUNT => "000000"

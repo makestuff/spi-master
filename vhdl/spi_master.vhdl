@@ -19,7 +19,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
-entity serial_io is
+entity spi_master is
 	generic (
 		FAST_COUNT : unsigned(5 downto 0) := "000000"; -- maxcount for fast mode: defaults to sysClk/2 (24MHz @48MHz)
 		SLOW_COUNT : unsigned(5 downto 0) := "111011"  -- maxcount for slow mode: defaults to sysClk/120 (400kHz @48MHz)
@@ -45,7 +45,7 @@ entity serial_io is
 	);
 end entity;
  
-architecture rtl of serial_io is
+architecture rtl of spi_master is
 	-- Sender FSM
 	type SSType is (
 		SS_IDLE,
