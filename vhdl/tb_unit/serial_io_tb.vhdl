@@ -20,40 +20,51 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 use ieee.std_logic_textio.all;
 use std.textio.all;
+use work.hex_util.all;
 
 entity serial_io_tb is
 end entity;
 
 architecture behavioural of serial_io_tb is
 	-- Clocks, etc
-	signal sysClk   : std_logic;  -- main system clock
-	signal dispClk  : std_logic;  -- display version of sysClk, which transitions 4ns before it
-	signal reset    : std_logic;
+	signal sysClk     : std_logic;  -- main system clock
+	signal dispClk    : std_logic;  -- display version of sysClk, which transitions 4ns before it
+	signal reset      : std_logic;
 
 	-- Client interface
-	signal sendData : std_logic_vector(7 downto 0);  -- data to send
-	signal recvData : std_logic_vector(7 downto 0);  -- data we receive
-	signal load     : std_logic;  -- begin a new send/receive operation
-	signal busy     : std_logic;  -- flag to indicate when serial_io unit is busy sending/receiving
+	signal sendData   : std_logic_vector(7 downto 0);  -- data to send
+	signal sendValid  : std_logic;
+	signal sendReady  : std_logic;
+	signal recvData   : std_logic_vector(7 downto 0);  -- data we receive
+	signal recvValid  : std_logic;
+	signal recvReady  : std_logic;
 
 	-- External interface
-	signal sDataOut : std_logic;  -- send serial data
-	signal sDataIn  : std_logic;  -- receive serial data
-	signal sClk     : std_logic;  -- serial clock
+	signal spiClk     : std_logic;  -- serial clock
+	signal spiDataOut : std_logic;  -- send serial data
+	signal spiDataIn  : std_logic;  -- receive serial data
 begin
 	-- Instantiate the unit under test
 	uut: entity work.serial_io
+		generic map(
+			--FAST_COUNT => "000011"
+			FAST_COUNT => "000000"
+		)
 		port map(
-			reset_in  => reset,
-			clk_in    => sysClk,
-			data_in   => sendData,
-			data_out  => recvData,
-			load_in   => load,
-			turbo_in  => '1',
-			busy_out  => busy,
-			sData_out => sDataOut,
-			sData_in  => sDataIn,
-			sClk_out  => sClk
+			reset_in      => reset,
+			clk_in        => sysClk,
+			turbo_in      => '1',
+			
+			sendData_in   => sendData,
+			sendValid_in  => sendValid,
+			sendReady_out => sendReady,
+			recvData_out  => recvData,
+			recvValid_out => recvValid,
+			recvReady_in  => recvReady,
+
+			spiClk_out    => spiClk,
+			spiData_out   => spiDataOut,
+			spiData_in    => spiDataIn
 		);
 
 	-- Drive the clocks. In simulation, sysClk lags 4ns behind dispClk, to give a visual hold time
@@ -82,33 +93,37 @@ begin
 		wait;
 	end process;
 
-	-- Drive the serial interface: send from s/send.sim and receive into r/recv.sim
+	-- Drive the unit under test. Read stimulus from stimulus.sim and write results to results.sim
 	process
-		variable inLine, outLine : line;
-		variable inData, outData : std_logic_vector(7 downto 0);
-		file inFile              : text open read_mode is "stimulus/send.sim";
-		file outFile             : text open write_mode is "results/recv.sim";
+		variable inLine  : line;
+		variable outLine : line;
+		file inFile      : text open read_mode is "stimulus/send.sim";
+		file outFile     : text open write_mode is "results/recv.sim";
 	begin
 		sendData <= (others => 'X');
-		load <= '0';
+		sendValid <= '0';
 		wait until falling_edge(reset);
 		wait until rising_edge(sysClk);
-		loop
-			exit when endfile(inFile);
+		while ( not endfile(inFile) ) loop
 			readline(inFile, inLine);
-			read(inLine, inData);
-			sendData <= inData;
-			load <= '1';
-			wait until rising_edge(sysClk);
-			sendData <= (others => 'X');
-			load <= '0';
-			wait until busy = '0';
-			outData := recvData;
-			write(outLine, outData);
+			while ( inLine.all'length = 0 or inLine.all(1) = '#' or inLine.all(1) = ht or inLine.all(1) = ' ' ) loop
+				readline(inFile, inLine);
+			end loop;
+			sendData <= to_4(inLine.all(1)) & to_4(inLine.all(2));
+			sendValid <= to_1(inLine.all(4));
+			recvReady <= to_1(inLine.all(6));
+			wait for 10 ns;
+			write(outLine, from_4(sendData(7 downto 4)) & from_4(sendData(3 downto 0)));
+			write(outLine, ' ');
+			write(outLine, sendValid);
+			write(outLine, ' ');
+			write(outLine, sendReady);
 			writeline(outFile, outLine);
+			wait for 10 ns;
 		end loop;
+		sendData <= (others => 'X');
+		sendValid <= '0';
 		wait;
-		--assert false report "NONE. End of simulation." severity failure;
 	end process;
 
 	-- Mock the serial interface's interlocutor: send from s/recv.sim and receive into r/send.sim
@@ -118,48 +133,48 @@ begin
 		file inFile              : text open read_mode is "stimulus/recv.sim";
 		file outFile             : text open write_mode is "results/send.sim";
 	begin
-		sDataIn <= 'X';
+		spiDataIn <= 'X';
 		loop
 			exit when endfile(inFile);
 			readline(inFile, inLine);
 			read(inLine, inData);
-			wait until sClk = '0';
-			sDataIn <= inData(0);
-			wait until sClk = '1';
-			outData(0) := sDataOut;
-			wait until sClk = '0';
-			sDataIn <= inData(1);
-			wait until sClk = '1';
-			outData(1) := sDataOut;
-			wait until sClk = '0';
-			sDataIn <= inData(2);
-			wait until sClk = '1';
-			outData(2) := sDataOut;
-			wait until sClk = '0';
-			sDataIn <= inData(3);
-			wait until sClk = '1';
-			outData(3) := sDataOut;
-			wait until sClk = '0';
-			sDataIn <= inData(4);
-			wait until sClk = '1';
-			outData(4) := sDataOut;
-			wait until sClk = '0';
-			sDataIn <= inData(5);
-			wait until sClk = '1';
-			outData(5) := sDataOut;
-			wait until sClk = '0';
-			sDataIn <= inData(6);
-			wait until sClk = '1';
-			outData(6) := sDataOut;
-			wait until sClk = '0';
-			sDataIn <= inData(7);
-			wait until sClk = '1';
-			outData(7) := sDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(0);
+			wait until spiClk = '1';
+			outData(0) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(1);
+			wait until spiClk = '1';
+			outData(1) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(2);
+			wait until spiClk = '1';
+			outData(2) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(3);
+			wait until spiClk = '1';
+			outData(3) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(4);
+			wait until spiClk = '1';
+			outData(4) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(5);
+			wait until spiClk = '1';
+			outData(5) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(6);
+			wait until spiClk = '1';
+			outData(6) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(7);
+			wait until spiClk = '1';
+			outData(7) := spiDataOut;
 			write(outLine, outData);
 			writeline(outFile, outLine);
 		end loop;
 		wait for 10 ns;
-		sDataIn <= 'X';
+		spiDataIn <= 'X';
 		wait;
 	end process;
 end architecture;
