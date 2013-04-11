@@ -48,7 +48,8 @@ begin
 	uut: entity work.spi_master
 		generic map(
 			--FAST_COUNT => "000011"
-			FAST_COUNT => "000000"
+			FAST_COUNT => "000000",
+			BIT_ORDER  => '0'
 		)
 		port map(
 			reset_in      => reset,

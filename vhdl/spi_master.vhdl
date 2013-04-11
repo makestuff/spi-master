@@ -22,7 +22,8 @@ use ieee.numeric_std.all;
 entity spi_master is
 	generic (
 		FAST_COUNT    : unsigned(5 downto 0) := "000000"; -- maxcount for fast mode: defaults to sysClk/2 (24MHz @48MHz)
-		SLOW_COUNT    : unsigned(5 downto 0) := "111011"  -- maxcount for slow mode: defaults to sysClk/120 (400kHz @48MHz)
+		SLOW_COUNT    : unsigned(5 downto 0) := "111011"; -- maxcount for slow mode: defaults to sysClk/120 (400kHz @48MHz)
+		BIT_ORDER     : std_logic := '0'                  -- '0' for LSB first, '1' for MSB first
 	);
 	port(
 		reset_in      : in  std_logic;
@@ -101,7 +102,11 @@ begin
 		recvValid_out <= '0';
 		cycleCount_next <= cycleCount;
 		bitCount_next <= bitCount;
-		spiData_out <= shiftOut(0);  -- always drive the LSB on spiData_out
+		if ( BIT_ORDER = '1' ) then
+			spiData_out <= shiftOut(7);  -- always drive the MSB on spiData_out
+		else
+			spiData_out <= shiftOut(0);  -- always drive the LSB on spiData_out
+		end if;
 		sendReady_out <= '0';  -- not ready for data
 		case state is
 			-- Wait for data on the send pipe for us to clock out
@@ -123,11 +128,19 @@ begin
 				if ( cycleCount = 0 ) then
 					-- Time to move on to S_SCLK_HIGH - prepare to sample input data
 					state_next <= S_SCLK_HIGH;
-					shiftIn_next <= spiData_in & shiftIn(6 downto 1);
+					if ( BIT_ORDER = '1' ) then
+						shiftIn_next <= shiftIn(5 downto 0) & spiData_in;
+					else
+						shiftIn_next <= spiData_in & shiftIn(6 downto 1);
+					end if;
 					cycleCount_next <= cycleCount_init;
 					if ( bitCount = 0 ) then
 						-- Update the recvData register
-						recvData_next <= spiData_in & shiftIn(6 downto 0);
+						if ( BIT_ORDER = '1' ) then
+							recvData_next <= shiftIn(6 downto 0) & spiData_in;
+						else
+							recvData_next <= spiData_in & shiftIn(6 downto 0);
+						end if;
 						state_next <= S_RECV_COUNT;
 					end if;
 				end if;
@@ -192,7 +205,11 @@ begin
 				cycleCount_next <= cycleCount - 1;
 				if ( cycleCount = 0 ) then
 					-- Time to move back to S_SCLK_LOW or S_IDLE - shift next bit out on next clock edge
-					shiftOut_next <= "0" & shiftOut(7 downto 1);
+					if ( BIT_ORDER = '1' ) then
+						shiftOut_next <= shiftOut(6 downto 0) & "0";
+					else
+						shiftOut_next <= "0" & shiftOut(7 downto 1);
+					end if;
 					bitCount_next <= bitCount - 1;
 					cycleCount_next <= cycleCount_init;
 					if ( bitCount = 0 ) then
