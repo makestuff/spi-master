@@ -21,13 +21,13 @@ use ieee.numeric_std.all;
 
 entity spi_master is
 	generic (
-		FAST_COUNT : unsigned(5 downto 0) := "000000"; -- maxcount for fast mode: defaults to sysClk/2 (24MHz @48MHz)
-		SLOW_COUNT : unsigned(5 downto 0) := "111011"  -- maxcount for slow mode: defaults to sysClk/120 (400kHz @48MHz)
+		FAST_COUNT    : unsigned(5 downto 0) := "000000"; -- maxcount for fast mode: defaults to sysClk/2 (24MHz @48MHz)
+		SLOW_COUNT    : unsigned(5 downto 0) := "111011"  -- maxcount for slow mode: defaults to sysClk/120 (400kHz @48MHz)
 	);
 	port(
-		reset_in     : in  std_logic;
-		clk_in       : in  std_logic;
-		turbo_in     : in  std_logic;
+		reset_in      : in  std_logic;
+		clk_in        : in  std_logic;
+		turbo_in      : in  std_logic;
 
 		-- Client interface
 		sendData_in   : in  std_logic_vector(7 downto 0);
@@ -39,9 +39,9 @@ entity spi_master is
 		recvReady_in  : in  std_logic;
 
 		-- SPI interface
-		spiClk_out  : out std_logic;
-		spiData_out : out std_logic;
-		spiData_in  : in  std_logic
+		spiClk_out    : out std_logic;
+		spiData_out   : out std_logic;
+		spiData_in    : in  std_logic
 	);
 end entity;
  
@@ -54,13 +54,13 @@ architecture rtl of spi_master is
 		S_SCLK_LOW,       -- drive LSB on spiData whilst holding spiClk low
 		S_SCLK_HIGH       -- drive LSB on spiData whilst holding spiClk high
 	);
-	signal state, state_next            : StateType := S_IDLE;
-	signal shiftOut, shiftOut_next      : std_logic_vector(7 downto 0) := (others => '0');  -- outbound shift reg
-	signal shiftIn, shiftIn_next        : std_logic_vector(6 downto 0) := (others => '0');  -- inbound shift reg
-	signal recvData, recvData_next      : std_logic_vector(7 downto 0) := (others => '0');  -- receive side dbl.buf
-	signal cycleCount, cycleCount_next  : unsigned(5 downto 0) := (others => '0');          -- num cycles per 1/2 bit
-	signal cycleCount_init              : unsigned(5 downto 0) := (others => '0');          --
-	signal bitCount, bitCount_next      : unsigned(2 downto 0) := (others => '0');          -- num bits remaining
+	signal state, state_next           : StateType := S_IDLE;
+	signal shiftOut, shiftOut_next     : std_logic_vector(7 downto 0) := (others => '0');  -- outbound shift reg
+	signal shiftIn, shiftIn_next       : std_logic_vector(6 downto 0) := (others => '0');  -- inbound shift reg
+	signal recvData, recvData_next     : std_logic_vector(7 downto 0) := (others => '0');  -- receive side dbl.buf
+	signal cycleCount, cycleCount_next : unsigned(5 downto 0) := (others => '0');          -- num cycles per 1/2 bit
+	signal cycleCount_init             : unsigned(5 downto 0) := (others => '0');          --
+	signal bitCount, bitCount_next     : unsigned(2 downto 0) := (others => '0');          -- num bits remaining
 begin
 	-- Infer registers
 	process(clk_in)
@@ -89,12 +89,13 @@ begin
 		SLOW_COUNT;
 
 	-- Next state logic
-	process(state, sendData_in, sendValid_in, recvData, recvReady_in,
-			  shiftOut, shiftIn, spiData_in,
-			  cycleCount_init, cycleCount, bitCount)
+	process(
+		state, sendData_in, sendValid_in, recvData, recvReady_in,
+		shiftOut, shiftIn, spiData_in,
+		cycleCount_init, cycleCount, bitCount)
 	begin
 		state_next <= state;
-		shiftOut_next  <= shiftOut;
+		shiftOut_next <= shiftOut;
 		shiftIn_next <= shiftIn;
 		recvData_next <= recvData;
 		recvValid_out <= '0';
@@ -105,11 +106,11 @@ begin
 		case state is
 			-- Wait for data on the send pipe for us to clock out
 			when S_IDLE =>
-				spiClk_out  <= '1';
+				spiClk_out <= '1';
 				sendReady_out <= '1';  -- ready for data
 				if ( sendValid_in = '1' ) then
 					-- we've got some data to send...prepare to clock it out
-					state_next <= S_SCLK_LOW;           -- spiClk going low
+					state_next <= S_SCLK_LOW;            -- spiClk going low
 					shiftOut_next <= sendData_in;        -- get send byte from FIFO
 					bitCount_next <= "111";              -- need eight bits for a full byte
 					cycleCount_next <= cycleCount_init;  -- initialise the delay counter
