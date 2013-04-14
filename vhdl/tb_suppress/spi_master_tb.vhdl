@@ -49,14 +49,14 @@ begin
 		generic map(
 			--FAST_COUNT => "000011"
 			FAST_COUNT => "000000",
-			BIT_ORDER  => '0'
+			BIT_ORDER  => '1'
 		)
 		port map(
 			reset_in      => reset,
 			clk_in        => sysClk,
 			
 			turbo_in      => '1',
-			suppress_in   => '0',
+			suppress_in   => '1',
 			sendData_in   => sendData,
 			sendValid_in  => sendValid,
 			sendReady_out => sendReady,
@@ -142,37 +142,37 @@ begin
 			readline(inFile, inLine);
 			read(inLine, inData);
 			wait until spiClk = '0';
-			spiDataIn <= inData(0);
+			spiDataIn <= inData(7);
 			wait until spiClk = '1';
-			outData(0) := spiDataOut;
-			wait until spiClk = '0';
-			spiDataIn <= inData(1);
-			wait until spiClk = '1';
-			outData(1) := spiDataOut;
-			wait until spiClk = '0';
-			spiDataIn <= inData(2);
-			wait until spiClk = '1';
-			outData(2) := spiDataOut;
-			wait until spiClk = '0';
-			spiDataIn <= inData(3);
-			wait until spiClk = '1';
-			outData(3) := spiDataOut;
-			wait until spiClk = '0';
-			spiDataIn <= inData(4);
-			wait until spiClk = '1';
-			outData(4) := spiDataOut;
-			wait until spiClk = '0';
-			spiDataIn <= inData(5);
-			wait until spiClk = '1';
-			outData(5) := spiDataOut;
+			outData(7) := spiDataOut;
 			wait until spiClk = '0';
 			spiDataIn <= inData(6);
 			wait until spiClk = '1';
 			outData(6) := spiDataOut;
 			wait until spiClk = '0';
-			spiDataIn <= inData(7);
+			spiDataIn <= inData(5);
 			wait until spiClk = '1';
-			outData(7) := spiDataOut;
+			outData(5) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(4);
+			wait until spiClk = '1';
+			outData(4) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(3);
+			wait until spiClk = '1';
+			outData(3) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(2);
+			wait until spiClk = '1';
+			outData(2) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(1);
+			wait until spiClk = '1';
+			outData(1) := spiDataOut;
+			wait until spiClk = '0';
+			spiDataIn <= inData(0);
+			wait until spiClk = '1';
+			outData(0) := spiDataOut;
 			write(outLine, outData);
 			writeline(outFile, outLine);
 		end loop;

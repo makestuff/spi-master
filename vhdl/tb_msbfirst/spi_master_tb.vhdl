@@ -54,15 +54,17 @@ begin
 		port map(
 			reset_in      => reset,
 			clk_in        => sysClk,
-			turbo_in      => '1',
 			
+			turbo_in      => '1',
+			suppress_in   => '0',
 			sendData_in   => sendData,
 			sendValid_in  => sendValid,
 			sendReady_out => sendReady,
+			
 			recvData_out  => recvData,
 			recvValid_out => recvValid,
 			recvReady_in  => recvReady,
-
+			
 			spiClk_out    => spiClk,
 			spiData_out   => spiDataOut,
 			spiData_in    => spiDataIn

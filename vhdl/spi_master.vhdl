@@ -28,10 +28,11 @@ entity spi_master is
 	port(
 		reset_in      : in  std_logic;
 		clk_in        : in  std_logic;
-		turbo_in      : in  std_logic;
 
 		-- Client interface
 		sendData_in   : in  std_logic_vector(7 downto 0);
+		turbo_in      : in  std_logic;
+		suppress_in   : in  std_logic;
 		sendValid_in  : in  std_logic;
 		sendReady_out : out std_logic;
 
@@ -60,8 +61,10 @@ architecture rtl of spi_master is
 	signal shiftIn, shiftIn_next       : std_logic_vector(6 downto 0) := (others => '0');  -- inbound shift reg
 	signal recvData, recvData_next     : std_logic_vector(7 downto 0) := (others => '0');  -- receive side dbl.buf
 	signal cycleCount, cycleCount_next : unsigned(5 downto 0) := (others => '0');          -- num cycles per 1/2 bit
-	signal cycleCount_init             : unsigned(5 downto 0) := (others => '0');          --
+	signal initCeiling, contCeiling    : unsigned(5 downto 0) := SLOW_COUNT;               -- count init values
+	signal turbo, turbo_next           : std_logic := '0';                                 -- fast or slow?
 	signal bitCount, bitCount_next     : unsigned(2 downto 0) := (others => '0');          -- num bits remaining
+	signal suppress, suppress_next     : std_logic := '0';                                 -- suppress output?
 begin
 	-- Infer registers
 	process(clk_in)
@@ -74,6 +77,8 @@ begin
 				recvData <= (others => '0');
 				bitCount <= "000";
 				cycleCount <= (others => '0');
+				turbo <= '0';
+				suppress <= '0';
 			else
 				state <= state_next;
 				shiftOut <= shiftOut_next;
@@ -81,19 +86,24 @@ begin
 				recvData <= recvData_next;
 				bitCount <= bitCount_next;
 				cycleCount <= cycleCount_next;
+				turbo <= turbo_next;
+				suppress <= suppress_next;
 			end if;
 		end if;
 	end process;
 
-	cycleCount_init <=
+	initCeiling <=
 		FAST_COUNT when turbo_in = '1' else
+		SLOW_COUNT;
+	contCeiling <=
+		FAST_COUNT when turbo = '1' else
 		SLOW_COUNT;
 
 	-- Next state logic
 	process(
-		state, sendData_in, sendValid_in, recvData, recvReady_in,
-		shiftOut, shiftIn, spiData_in,
-		cycleCount_init, cycleCount, bitCount)
+		state, sendData_in, suppress_in, sendValid_in, recvData, recvReady_in,
+		shiftOut, shiftIn, spiData_in, suppress, turbo, turbo_in,
+		initCeiling, contCeiling, cycleCount, bitCount)
 	begin
 		state_next <= state;
 		shiftOut_next <= shiftOut;
@@ -102,6 +112,8 @@ begin
 		recvValid_out <= '0';
 		cycleCount_next <= cycleCount;
 		bitCount_next <= bitCount;
+		turbo_next <= turbo;
+		suppress_next <= suppress;
 		if ( BIT_ORDER = '1' ) then
 			spiData_out <= shiftOut(7);  -- always drive the MSB on spiData_out
 		else
@@ -116,9 +128,11 @@ begin
 				if ( sendValid_in = '1' ) then
 					-- we've got some data to send...prepare to clock it out
 					state_next <= S_SCLK_LOW;            -- spiClk going low
+					turbo_next <= turbo_in;
+					suppress_next <= suppress_in;
 					shiftOut_next <= sendData_in;        -- get send byte from FIFO
 					bitCount_next <= "111";              -- need eight bits for a full byte
-					cycleCount_next <= cycleCount_init;  -- initialise the delay counter
+					cycleCount_next <= initCeiling;      -- initialise the delay counter
 				end if;
 
 			-- Drive bit on spiData, and hold spiClk low for cycleCount+1 cycles
@@ -133,7 +147,7 @@ begin
 					else
 						shiftIn_next <= spiData_in & shiftIn(6 downto 1);
 					end if;
-					cycleCount_next <= cycleCount_init;
+					cycleCount_next <= contCeiling;
 					if ( bitCount = 0 ) then
 						-- Update the recvData register
 						if ( BIT_ORDER = '1' ) then
@@ -141,7 +155,11 @@ begin
 						else
 							recvData_next <= spiData_in & shiftIn(6 downto 0);
 						end if;
-						state_next <= S_RECV_COUNT;
+						if ( suppress = '0' ) then
+							state_next <= S_RECV_COUNT;
+						else
+							state_next <= S_SCLK_HIGH;
+						end if;
 					end if;
 				end if;
 
@@ -160,9 +178,11 @@ begin
 						if ( sendValid_in = '1' ) then
 							-- There's a new byte to send
 							state_next <= S_SCLK_LOW;
+							turbo_next <= turbo_in;
+							suppress_next <= suppress_in;
 							shiftOut_next <= sendData_in;
 							bitCount_next <= "111";
-							cycleCount_next <= cycleCount_init;
+							cycleCount_next <= initCeiling;
 						else
 							-- Nothing to do, go idle
 							state_next <= S_IDLE;
@@ -190,9 +210,11 @@ begin
 					if ( sendValid_in = '1' ) then
 						-- There's a new byte to send
 						state_next <= S_SCLK_LOW;
+						turbo_next <= turbo_in;
+						suppress_next <= suppress_in;
 						shiftOut_next <= sendData_in;
 						bitCount_next <= "111";
-						cycleCount_next <= cycleCount_init;
+						cycleCount_next <= initCeiling;
 					else
 						-- Nothing to do, go idle
 						state_next <= S_IDLE;
@@ -211,16 +233,18 @@ begin
 						shiftOut_next <= "0" & shiftOut(7 downto 1);
 					end if;
 					bitCount_next <= bitCount - 1;
-					cycleCount_next <= cycleCount_init;
+					cycleCount_next <= contCeiling;
 					if ( bitCount = 0 ) then
 						-- This was the last bit...see if there's another byte to send or go back to idle state
 						sendReady_out <= '1';
 						if ( sendValid_in = '1' ) then
 							-- There's a new byte to send
 							state_next <= S_SCLK_LOW;
+							turbo_next <= turbo_in;
+							suppress_next <= suppress_in;
 							shiftOut_next <= sendData_in;
 							bitCount_next <= "111";
-							cycleCount_next <= cycleCount_init;
+							cycleCount_next <= initCeiling;
 						else
 							-- Nothing to do, go idle
 							state_next <= S_IDLE;
